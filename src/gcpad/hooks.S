@@ -52,23 +52,23 @@
     .globl _entry
 _entry:
 #if defined(HOOK_POLL)
-    # KPADiRead(chan, buf, n): r3 = channel
+    # Read(chan, buf, n): r3 = channel
     SAVE
     bl      gc_poll
     RESTORE_ALL
     lwz     0, 0x0c(1)
     addi    1, 1, 0x70
-    stwu    1, -96(1)           # original instruction (stwu r1, -0x60(r1))
+    stwu    1, -192(1)          # original instruction (stwu r1, -0xC0(r1))
 #elif defined(HOOK_SAMPLE)
-    # KPADiRead before sample-count check: r28 = KPAD struct, r25 = channel
+    # Read before sample-count check: r31 = KPAD struct, r27 = channel
     SAVE
-    mr      3, 28
-    mr      4, 25
+    mr      3, 31
+    mr      4, 27
     bl      gc_sample
     RESTORE_ALL
     lwz     0, 0x0c(1)
     addi    1, 1, 0x70
-    lbz     0, 0x10f(28)        # original instruction (lbz r0, 0x10f(r28))
+    lbz     0, 0x10f(31)        # original instruction (lbz r0, 0x10f(r31))
 #elif defined(HOOK_PROBE)
     # WPADProbe(chan, &type): r3 = chan, r4 = &type
     SAVE

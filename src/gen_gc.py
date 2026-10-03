@@ -15,7 +15,6 @@ import anchors
 DEVKIT = os.environ.get('DEVKITPPC', '/opt/devkitpro/devkitPPC')
 CC = DEVKIT + '/bin/powerpc-eabi-'
 
-USA_DOL = None
 
 def compile_hook(name, defs):
     src = os.path.join(HERE, 'gcpad')
@@ -39,13 +38,9 @@ def compile_hook(name, defs):
     os.rmdir(tmp)
     return list(struct.unpack('>%dI' % (len(b) // 4), b))
 
-def build(region, dol, mode='ba'):
-    global USA_DOL
-    if USA_DOL is None:
-        USA_DOL = dol if region == 'RWLE01' else None
 
-    # resolve addresses using USA reference DOL
-    a = anchors.resolve(USA_DOL if USA_DOL is not None else dol, dol)
+def build(region, dol, mode='ba'):
+    a = anchors.resolve(region, dol)
 
     defs = {
         'STATE': '0x%08Xu' % a['STATE'],
@@ -63,8 +58,8 @@ def build(region, dol, mode='ba'):
     ops, cur = [], GC_BASE
 
     hook_specs = [
-        ('POLL', a['KPADiRead'], 'KPADiRead: SI hardware auto-poller'),
-        ('SAMPLE', a['sample_site'], 'KPADiRead: GameCube pad -> Classic Controller sample bridge'),
+        ('POLL', a['Read'], 'Read: SI hardware auto-poller'),
+        ('SAMPLE', a['sample_site'], 'Read: GameCube pad -> Classic Controller sample bridge'),
         ('PROBE', a['WPADProbe'], 'WPADProbe: report Classic Controller on channel 0'),
     ]
 

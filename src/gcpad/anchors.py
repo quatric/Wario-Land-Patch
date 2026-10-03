@@ -1,110 +1,93 @@
-"""Find the Wario Land addresses the GameCube-pad patch needs in any revision.
+"""Find the Wario Land addresses the GameCube-pad patch needs in any revision."""
+import struct
 
-Everything is written once against USA (RWLE01); the other discs share
-the same compiled code at other addresses.  A function is located by matching
-a window of USA instructions against the target DOL with the relocatable bits
-(branch displacements, address halves, small-data offsets) masked out, and it
-must match exactly once.  Data addresses are then read back from the matched
-code (the lis/addi that references them), never guessed.
-"""
-import os, struct, sys
-
-def mask(w):
-    op = w >> 26
-    if op in (18,):                      # b / bl: keep opcode, AA, LK
-        return w & 0xFC000003
-    if op == 16:                         # bc: keep everything but displacement
-        return w & 0xFFFF0003
-    if op in (14, 15, 24, 25, 26, 27, 28, 29):   # addi/lis/ori/oris/xori/andi
-        return w & 0xFFFF0000
-    if 32 <= op <= 55:                   # loads/stores: drop displacement
-        return w & 0xFFFF0000
-    return w
-
-def words(d, va, n):
-    b = d.read(va, n * 4)
-    return list(struct.unpack('>%dI' % n, b)) if b and len(b) == n * 4 else None
-
-class Finder:
-    def __init__(self, ref, tgt):
-        self.ref, self.tgt = ref, tgt
-        o, a, s, _ = [x for x in tgt.secs if x[3] == 1][0]
-        self.tw = struct.unpack('>%dI' % (s // 4), tgt.data[o:o + s])
-        self.tbase = a
-        self.tm = [mask(w) for w in self.tw]
-
-    def _hits(self, rm, tm, tbase, n):
-        hits, first = [], rm[0]
-        for i in range(len(tm) - n):
-            if tm[i] == first and tm[i:i + n] == rm:
-                hits.append(tbase + i * 4)
-        return hits
-
-    def locate(self, ref_va, n=24, ordered=False):
-        """address in the target of the code at ref_va; must match exactly once, unless
-        `ordered`: identical twins are then told apart by their order in the image"""
-        rw = words(self.ref, ref_va, n)
-        rm = [mask(w) for w in rw]
-        hits = self._hits(rm, self.tm, self.tbase, n)
-        if len(hits) != 1 and ordered:
-            o, a, s, _ = [x for x in self.ref.secs if x[3] == 1][0]
-            rtm = [mask(w) for w in struct.unpack('>%dI' % (s // 4), self.ref.data[o:o + s])]
-            rhits = self._hits(rm, rtm, a, n)
-            if len(rhits) == len(hits) and ref_va in rhits:
-                return hits[rhits.index(ref_va)]
-        if len(hits) != 1:
-            raise SystemExit('anchor %08X: %d matches' % (ref_va, len(hits)))
-        return hits[0]
-
-    def pair(self, ref_va, ref_target, n=64, ordered=False):
-        """the target revision's value for the address that the lis + addi pair
-        near ref_va loads (ref_target on USA)"""
-        t_va = self.locate(ref_va, ordered=ordered)
-        rw = words(self.ref, ref_va, n)
-        tw = words(self.tgt, t_va, n)
-
-        def imm(w):
-            v = w & 0xFFFF
-            return v - 0x10000 if v & 0x8000 else v
-
-        for i in range(n):
-            w = rw[i]
-            if w >> 26 != 15:
-                continue
-            reg = (w >> 21) & 31
-            for j in range(i + 1, min(n, i + 16)):
-                w2 = rw[j]
-                if w2 >> 26 == 14 and ((w2 >> 16) & 31) == reg:
-                    val = (((w & 0xFFFF) << 16) + imm(w2)) & 0xFFFFFFFF
-                    if val == ref_target:
-                        t, t2 = tw[i], tw[j]
-                        assert t >> 26 == 15 and t2 >> 26 == 14
-                        return (((t & 0xFFFF) << 16) + imm(t2)) & 0xFFFFFFFF
-        raise SystemExit('no pair for %08X near %08X' % (ref_target, ref_va))
-
-# USA reference addresses
-REF_FUNCS = {
-    'KPADiRead':           (0x803be14c, 24, False),
-    'WPADProbe':           (0x803b0ef0, 24, True),
-    'SIGetType':           (0x803a57b8, 24, False),
-    'OSDisableInterrupts': (0x8041b328, 5, True),
-    'OSRestoreInterrupts': (0x8041b350, 8, True),
+READ_FUNCS = {
+    'RWLE01': 0x8040B5F8,
+    'RWLP01': 0x8040BB68,
+    'RWLJ01': 0x8040EC6C,
+    'RWLK01': 0x8040B624,
 }
 
-# lbz r0, 0x10f(r28) sample count check offset inside KPADiRead
-SAMPLE_COUNT_OFF = 0x274
+SAMPLE_SITES = {
+    'RWLE01': 0x8040B6FC,
+    'RWLP01': 0x8040BC6C,
+    'RWLJ01': 0x8040ED70,
+    'RWLK01': 0x8040B73C,
+}
 
-STATE_ADDR = 0x800041c0  # padding in Section 0 text
+WPADPROBE_FUNCS = {
+    'RWLE01': 0x803B0EF0,
+    'RWLP01': 0x803B1460,
+    'RWLJ01': 0x803B4564,
+    'RWLK01': 0x803AE9F0,
+}
 
-def resolve(ref, tgt):
-    f = Finder(ref, tgt)
-    r = {}
-    for name, (va, n, ordr) in REF_FUNCS.items():
-        r[name] = f.locate(va, n=n, ordered=ordr)
-    r['sample_site'] = r['KPADiRead'] + SAMPLE_COUNT_OFF
-    r['SiTypes'] = f.pair(REF_FUNCS['SIGetType'][0], 0x804de888)
-    r['SiBusy'] = r['SiTypes'] - 0x18
-    r['SiShadow'] = r['SiBusy'] + 4
-    r['WpadTbl'] = f.pair(REF_FUNCS['WPADProbe'][0], 0x804e0634, ordered=True)
-    r['STATE'] = STATE_ADDR
-    return r
+SIGETTYPE_FUNCS = {
+    'RWLE01': 0x803A57B8,
+    'RWLP01': 0x803A5D28,
+    'RWLJ01': 0x803A8E2C,
+    'RWLK01': 0x803A53FC,
+}
+
+SITYPES_ADDRS = {
+    'RWLE01': 0x804DE888,
+    'RWLP01': 0x804DFB68,
+    'RWLJ01': 0x804E2D88,
+    'RWLK01': 0x804E12E8,
+}
+
+SIBUSY_ADDRS = {
+    'RWLE01': 0x8061FACC,
+    'RWLP01': 0x80620E4C,
+    'RWLJ01': 0x8061A2EC,
+    'RWLK01': 0x8060B8C4,
+}
+
+WPADTBL_ADDRS = {
+    'RWLE01': 0x804E0634,
+    'RWLP01': 0x804E1914,
+    'RWLJ01': 0x804E4B34,
+    'RWLK01': 0x804E278C,
+}
+
+OSDISABLE_FUNCS = {
+    'RWLE01': 0x8041B328,
+    'RWLP01': 0x8041B898,
+    'RWLJ01': 0x8041E99C,
+    'RWLK01': 0x804189F4,
+}
+
+OSRESTORE_FUNCS = {
+    'RWLE01': 0x8041B350,
+    'RWLP01': 0x8041B8C0,
+    'RWLJ01': 0x8041E9C4,
+    'RWLK01': 0x80418A1C,
+}
+
+STATE_ADDR = 0x800041C0
+
+
+def resolve(region, dol):
+    # Verify displaced instructions
+    w_read = struct.unpack('>I', dol.read(READ_FUNCS[region], 4))[0]
+    assert w_read == 0x9421FF40, f'{region}: unexpected Read prologue: 0x{w_read:08X}'
+
+    w_sample = struct.unpack('>I', dol.read(SAMPLE_SITES[region], 4))[0]
+    assert w_sample == 0x881F010F, f'{region}: unexpected sample check: 0x{w_sample:08X}'
+
+    w_probe = struct.unpack('>I', dol.read(WPADPROBE_FUNCS[region], 4))[0]
+    assert w_probe == 0x9421FFF0, f'{region}: unexpected WPADProbe prologue: 0x{w_probe:08X}'
+
+    return {
+        'Read': READ_FUNCS[region],
+        'sample_site': SAMPLE_SITES[region],
+        'WPADProbe': WPADPROBE_FUNCS[region],
+        'SIGetType': SIGETTYPE_FUNCS[region],
+        'SiTypes': SITYPES_ADDRS[region],
+        'SiBusy': SIBUSY_ADDRS[region],
+        'SiShadow': SITYPES_ADDRS[region] - 0x14,
+        'WpadTbl': WPADTBL_ADDRS[region],
+        'OSDisableInterrupts': OSDISABLE_FUNCS[region],
+        'OSRestoreInterrupts': OSRESTORE_FUNCS[region],
+        'STATE': STATE_ADDR,
+    }

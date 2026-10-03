@@ -87,16 +87,16 @@ The SDK and game hook sites across the four supported revisions:
 
 | Symbol / Hook Site | USA (`RWLE01`) | Europe (`RWLP01`) | Japan Rev 1 (`RWLJ01`) | Korea (`RWLK01`) |
 | :--- | :---: | :---: | :---: | :---: |
-| **KPADiRead** | `0x803BE14C` | `0x803BE6BC` | `0x803C17C0` | `0x803BCC6C` |
-| **Sample Check** (`+0x274`) | `0x803BE3C0` | `0x803BE930` | `0x803C1A34` | `0x803BCEE0` |
-| **WPADProbe** | `0x803B0EF0` | `0x803B1460` | `0x803B4564` | `0x803AE9F0` |
-| **SIGetType** | `0x803AC998` | `0x803ACEE8` | `0x803AFFE0` | `0x803AA478` |
-| **OSDisableInterrupts** | `0x803A9008` | `0x803A9558` | `0x803AC650` | `0x803A6AE8` |
-| **OSRestoreInterrupts** | `0x803A901C` | `0x803A956C` | `0x803AC664` | `0x803A6AFC` |
-| **SiTypes** | `0x8042FDE8` | `0x804303B8` | `0x804334B8` | `0x80430548` |
-| **SiBusy** | `0x8042FE40` | `0x80430410` | `0x80433510` | `0x804305A0` |
-| **SiShadow** | `0x8042FE70` | `0x80430440` | `0x80433540` | `0x804305D0` |
-| **WpadTbl** | `0x80430348` | `0x80430918` | `0x80433A18` | `0x80430AA8` |
+| **Read Function (HOOK_POLL)** | `0x8040B5F8` | `0x8040BB68` | `0x8040EC6C` | `0x8040B624` |
+| **Sample Check (HOOK_SAMPLE)** | `0x8040B6FC` | `0x8040BC6C` | `0x8040ED70` | `0x8040B73C` |
+| **WPADProbe (HOOK_PROBE)** | `0x803B0EF0` | `0x803B1460` | `0x803B4564` | `0x803AE9F0` |
+| **SIGetType** | `0x803A57B8` | `0x803A5D28` | `0x803A8E2C` | `0x803A53FC` |
+| **SiTypes** | `0x804DE888` | `0x804DFB68` | `0x804E2D88` | `0x804E12E8` |
+| **SiBusy** | `0x8061FACC` | `0x80620E4C` | `0x8061A2EC` | `0x8060B8C4` |
+| **SiShadow** | `0x804DE874` | `0x804DFB54` | `0x804E2D74` | `0x804E12D4` |
+| **WpadTbl** | `0x804E0634` | `0x804E1914` | `0x804E4B34` | `0x804E278C` |
+| **OSDisableInterrupts** | `0x8041B328` | `0x8041B898` | `0x8041E99C` | `0x804189F4` |
+| **OSRestoreInterrupts** | `0x8041B350` | `0x8041B8C0` | `0x8041E9C4` | `0x80418A1C` |
 | **CC Hook 1 (Motion)** | `0x80409AB4` | `0x8040A024` | `0x8040D128` | `0x80409A9C` |
 | **CC Hook 2 (Pointer)** | `0x8040ABDC` | `0x8040B14C` | `0x8040E250` | `0x8040AC08` |
 | **CC Hook 3 (Stick->Dpad)** | `0x8040B50C` | `0x8040BA7C` | `0x8040EB80` | `0x8040B538` |
